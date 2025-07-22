@@ -39,8 +39,3 @@ provider "kubectl" {
   token                  = data.google_client_config.current.access_token
   load_config_file       = false
 }
-
-provider "google" {
-  project = var.project_id
-  region  = var.region
-}
