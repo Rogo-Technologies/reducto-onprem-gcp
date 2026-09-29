@@ -74,6 +74,10 @@ variable "enable_apis" {
     "apikeys.googleapis.com",
     # for Google Cloud Vision
     "vision.googleapis.com",
+    # for Secret Manager, which now holds the workload credentials
+    "secretmanager.googleapis.com",
+    # for Workload Identity binding
+    "iam.googleapis.com",
   ]
 }
 
@@ -85,8 +89,22 @@ variable "cluster_name" {
 
 variable "control_plane_allowed_cidrs" {
   type        = list(string)
-  description = "The list of CIDRs allowed to access the GKE control plane"
-  default     = ["0.0.0.0/0"]
+  description = <<-EOT
+    The list of CIDRs allowed to reach the GKE control plane.
+
+    Defaults to empty, which leaves the control plane reachable only from the
+    in-cluster node/pod ranges added in gke.tf. Do NOT widen this to "0.0.0.0/0":
+    combined with `enable_private_endpoint = false` that publishes the Kubernetes
+    API server to the public internet, where it is reachable by credential-stuffing
+    and token-theft attacks. If an operator or CI runner outside the VPC must reach
+    the API server, add only that egress NAT IP or VPN range.
+  EOT
+  default     = []
+
+  validation {
+    condition     = !contains(var.control_plane_allowed_cidrs, "0.0.0.0/0")
+    error_message = "control_plane_allowed_cidrs must not contain 0.0.0.0/0: this would expose the GKE control plane to the public internet. Enumerate the specific operator or VPN CIDRs instead."
+  }
 }
 
 variable "deletion_protection" {
@@ -99,6 +117,25 @@ variable "bucket_name_prefix" {
   type        = string
   description = "The prefix for the bucket name"
   default     = "reducto"
+}
+
+variable "gcs_cors_origins" {
+  type        = list(string)
+  description = <<-EOT
+    Origins permitted to make browser cross-origin requests to the bucket.
+
+    Empty by default, which is correct for a server-to-server workload: the Reducto
+    service reaches GCS from the pod, not from a browser. Add explicit origins (for
+    example "https://app.example.com") only if a front-end needs direct bucket access.
+    The wildcard "*" is rejected because it would let any page on the internet issue
+    credentialed cross-origin reads and writes against this bucket.
+  EOT
+  default     = []
+
+  validation {
+    condition     = !contains(var.gcs_cors_origins, "*")
+    error_message = "gcs_cors_origins must not contain the wildcard \"*\": enumerate the specific application origins that need browser access instead."
+  }
 }
 
 variable "reducto_helm_repo_username" {
@@ -132,4 +169,20 @@ variable "db_availability_type" {
 variable "db_tier" {
   description = "Tier for the database"
   default     = "db-custom-4-8192"
+}
+
+variable "namespace" {
+  type        = string
+  description = <<-EOT
+    Kubernetes namespace the Reducto workload runs in. Used to build the Workload
+    Identity principal (`<project>.svc.id.goog[<namespace>/<ksa>]`), which must match
+    the namespace and service account the Helm release actually creates.
+  EOT
+  default     = "reducto"
+}
+
+variable "workload_identity_ksa" {
+  type        = string
+  description = "Kubernetes service account bound to the Reducto Google service account for Workload Identity."
+  default     = "reducto"
 }

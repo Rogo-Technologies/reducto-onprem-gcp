@@ -48,12 +48,14 @@ resource "helm_release" "reducto" {
       host: ${var.reducto_host}
     env:
       GCP_PROJECT_ID: ${var.project_id}
-      GCP_API_KEY: ${google_apikeys_key.vision.key_string}
-      GCP_ACCESS_KEY_ID: ${google_storage_hmac_key.s3_compatible_key.access_id}
-      GCP_SECRET_ACCESS_KEY: ${google_storage_hmac_key.s3_compatible_key.secret}
-      GOOGLE_APPLICATION_CREDENTIALS: ${local.service_account_key}
       BUCKET: ${google_storage_bucket.private_bucket.name}
       DATABASE_URL: ${local.database_url}
+    # Long-lived credentials are NOT rendered into the Helm values here. Doing so stores
+    # them in the Helm release Secret *and* leaves them in plaintext in the Terraform
+    # state file, which is frequently committed to a shared bucket or cached by CI. The
+    # values below are written by the `reducto-secrets` Job defined in secrets.tf, which
+    # pulls them from Secret Manager with Workload Identity and never materializes them
+    # in Terraform.
     EOT
   ]
 

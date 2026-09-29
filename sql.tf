@@ -41,8 +41,21 @@ module "pg" {
     allocated_ip_range = null
   }
 
+  # Automated backups are the only recovery path for a stateful database. With this
+  # disabled, a destructive migration or an accidental `DROP` is unrecoverable and the
+  # instance has no point-in-time restore target. Backups are retained for 7 days,
+  # which covers a weekend of mistakes without unbounded storage cost.
   backup_configuration = {
-    enabled = false
+    enabled            = true
+    binary_log_enabled = true
+    start_time         = "03:00"
+    location           = var.region
+    point_in_time_recovery_enabled = true
+    transaction_log_retention_days  = 7
+    backup_retention_settings = {
+      retained_backups = 7
+      retention_unit   = "COUNT"
+    }
   }
 
   db_name               = local.db_name
