@@ -26,8 +26,8 @@ output "database_url" {
   sensitive   = true
 }
 
-output "service_account_key" {
-  description = "The key for the Reducto service account"
-  value       = local.service_account_key
-  sensitive   = true
-}
+# The long-lived service-account key output was removed. Credentials are now read at
+# runtime from Secret Manager via Workload Identity, so there is no key material to
+# hand out. Reading a secret requires:
+#   gcloud secrets versions access latest --secret=reducto-database-url
+# and the `roles/secretmanager.secretAccessor` binding on the workload identity.
